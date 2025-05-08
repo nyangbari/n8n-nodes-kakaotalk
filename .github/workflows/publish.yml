@@ -1,0 +1,64 @@
+name: Publish n8n KakaoTalk Node
+
+on:
+  push:
+    branches: [master]
+    paths: ['package.json']
+
+jobs:
+  check-version:
+    runs-on: ubuntu-22.04
+    outputs:
+      previous: ${{ steps.get-versions.outputs.previous }}
+      current: ${{ steps.get-versions.outputs.current }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - id: get-versions
+        run: |
+          previous=$(git show HEAD^:package.json | grep '"version"' | awk -F '"' '{print $4}')
+          current=$(git show HEAD:package.json | grep '"version"' | awk -F '"' '{print $4}')
+          echo "previous=v$previous" >> $GITHUB_OUTPUT
+          echo "current=v$current" >> $GITHUB_OUTPUT
+
+  tag-release:
+    needs: check-version
+    if: needs.check-version.outputs.previous != needs.check-version.outputs.current
+    runs-on: ubuntu-22.04
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: tag
+        run: |
+          tag=${{ needs.check-version.outputs.current }}
+          git tag $tag
+          git push origin $tag
+          echo "tag=$tag" >> $GITHUB_OUTPUT
+
+  create-release:
+    needs: tag-release
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.tag-release.outputs.tag }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  npm-publish:
+    needs: create-release
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: 'https://registry.npmjs.org'
+      - run: pnpm install
+      - run: pnpm run build
+      - env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: pnpm publish --access public
