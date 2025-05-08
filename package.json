@@ -1,6 +1,6 @@
 {
 	"name": "n8n-nodes-kakaotalk",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"description": "An n8n community node for sending KakaoTalk messages.",
 	"keywords": [
 		"n8n-community-node-package"
